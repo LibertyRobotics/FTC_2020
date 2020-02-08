@@ -102,6 +102,7 @@ public class SwerveMath {
      * Static method used to normalize a given angle
      * @return the angle in terms of module rotations
      */
+    /*
     public static double normalizeAngle(double angle){
 
         double alteredAngle = 0;
@@ -116,6 +117,26 @@ public class SwerveMath {
         }
 
         return alteredAngle/360;
+    }
+    */
+    public static double normalizeAngle(double angle) {
+        double alteredAngle = smallestPeriodicAngle(angle);
+
+        return alteredAngle/360;
+    }
+
+    /**
+     * A method for taking an angle greater than 360 degrees and turning it into a similar angle
+     * that is actually within the unit circle.
+     */
+    private static double smallestPeriodicAngle(double angle) {
+        if (angle >= 360) {
+            return smallestPeriodicAngle(angle - 360);
+        } else if (angle <= -360) {
+            return smallestPeriodicAngle(angle + 360);
+        } else {
+            return angle;
+        }
     }
 
 
