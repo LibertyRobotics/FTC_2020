@@ -1,9 +1,11 @@
 package org.firstinspires.ftc.teamcode.Swerve;
 
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.Gamepad;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Swerve.Enums.ModulePosition;
@@ -14,7 +16,7 @@ import org.firstinspires.ftc.teamcode.Utilities.Hardware.IMU;
 
 /**
  * Class used to control an individual swerve module
- * @author Will Richards, Zane Othman-Gomez
+ * @author Will Richards, Zane Othman-Gomez, Avi Lance
  */
 public class SwerveModule {
 
@@ -28,8 +30,8 @@ public class SwerveModule {
     private Telemetry telemetry;
 
     //Gets references to the top and bottom motors
-    private DcMotor TopSwerveMotor;
-    private DcMotor BottomSwerveMotor;
+    private DcMotorEx TopSwerveMotor;
+    private DcMotorEx BottomSwerveMotor;
 
     //Magnetic limit switch that is used to zero modules
     private DigitalChannel MagSwitch;
@@ -55,11 +57,11 @@ public class SwerveModule {
     private final double P = Constants.TURN_P, I = Constants.TURN_I, D = Constants.TURN_D;
 
     //Reference to the PID class that allows us to use PID
-    private PID TeleOpPID;
+    private PIDFCoefficients TeleOpPID;
 
     //Both deal with fine control of the swerve modules in autonomous
-    private PID turnPID;
-    private PID drivePID;
+    private PIDFCoefficients turnPID;
+    private PIDFCoefficients drivePID;
 
     //Power given to motors, in TeleOP
     private double power;
@@ -68,6 +70,7 @@ public class SwerveModule {
     private double turnPower;
     private double drivePower;
 
+    private List<DcmotorEx> motorList = new ArrayList<>();
     //private double motorSpeed = 0;
 
     /**
@@ -93,19 +96,19 @@ public class SwerveModule {
 
         switch(modPos) {
             case RIGHT:
-                TopSwerveMotor = hardwareMap.get(DcMotor.class, "RightTopSwerveMotor");
-                BottomSwerveMotor = hardwareMap.get(DcMotor.class, "RightBottomSwerveMotor");
+                TopSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotorEx.class, "RightTopSwerveMotor");
+                BottomSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotorEx.class, "RightBottomSwerveMotor");
                 MagSwitch = hardwareMap.get(DigitalChannel.class, "RightMagSwitch");
                 break;
             case LEFT:
-                TopSwerveMotor = hardwareMap.get(DcMotor.class, "LeftTopSwerveMotor");
-                BottomSwerveMotor = hardwareMap.get(DcMotor.class, "LeftBottomSwerveMotor");
+                TopSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotor.class, "LeftTopSwerveMotor");
+                BottomSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotor.class, "LeftBottomSwerveMotor");
                 MagSwitch = hardwareMap.get(DigitalChannel.class, "LeftMagSwitch");
                 break;
             case CENTER:
                 try {
-                    TopSwerveMotor = hardwareMap.get(DcMotor.class, "CenterTopSwerveMotor");
-                    BottomSwerveMotor = hardwareMap.get(DcMotor.class, "CenterBottomSwerveMotor");
+                    TopSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotor.class, "CenterTopSwerveMotor");
+                    BottomSwerveMotor = (DcMotorEx)hardwareMap.get(DcMotor.class, "CenterBottomSwerveMotor");
                 }
                 catch (Exception e){
                     throw new RuntimeException("3rd Swerve Module Not Setup Yet");
@@ -113,19 +116,38 @@ public class SwerveModule {
                 break;
         }
 
+        
+        motorList.add(TopSwerveMotor);
+        motorList.add(BottomSwerveMotor);
+
+        TeleOpPID = new PIDFCoefficients(P,I,D,F);
+        /*
+         * Creates a new TeleOpPID and passes P, I and D into it.
+         * After that it then sets the acceptable range which is the range +/- that it qualifies as at the right spot
+         * And finally it sets the point the module is trying to reach, at this point we just set it to 0
+         *
+         * There is 2250 ticks in one rotatio
+
+         **/
+        for (DcMotorEx motor: motorList) {
+            motor.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+            motor.setPIDFCoefficients(TeleOpPID);
+            motor.setTargetPositionTolerance(0.02*2250);
+            motor.setVelocity(0);
+
+        }
         //Tells the motors to run at a constant velocity, not just based on the motor values
-        TopSwerveMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        BottomSwerveMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         /*
          * Creates a new TeleOpPID and passes P, I and D into it.
          * After that it then sets the acceptable range which is the range +/- that it qualifies as at the right spot
          * And finally it sets the point the module is trying to reach, at this point we just set it to 0
          */
-        TeleOpPID = new PID(P,I,D);
+
         TeleOpPID.setAcceptableRange(0.02);
         TeleOpPID.setSetpoint(0);
         TeleOpPID.setMaxOutput(0.75);
+
 
         /*
          * Create a new turnPID to specifically be used for autonomous turning of the robot
