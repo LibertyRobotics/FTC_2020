@@ -4,9 +4,6 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 
 import org.firstinspires.ftc.teamcode.Subsystems.StoneGripController;
-import org.firstinspires.ftc.teamcode.Subsystems.Utilities.GripArmPosition;
-import org.firstinspires.ftc.teamcode.Subsystems.Utilities.MoveArmDirection;
-import org.firstinspires.ftc.teamcode.Swerve.SwerveController;
 import org.firstinspires.ftc.teamcode.Utilities.Hardware.Enums.IMUOrientation;
 
 @Autonomous(name = "Linear Foundation Auto", group = "Autonomous")

@@ -3,7 +3,6 @@ package org.firstinspires.ftc.teamcode.Utilities.Pathing;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
-import org.firstinspires.ftc.teamcode.Swerve.SwerveController;
 import org.firstinspires.ftc.teamcode.Utilities.Hardware.Enums.IMUOrientation;
 import org.firstinspires.ftc.teamcode.Utilities.Hardware.IMU;
 import org.firstinspires.ftc.teamcode.Utilities.Pathing.DriveStyles.SwerveDriveFollow;

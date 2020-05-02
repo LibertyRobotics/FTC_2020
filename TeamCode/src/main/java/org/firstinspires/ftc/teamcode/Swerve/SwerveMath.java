@@ -1,181 +1,173 @@
 package org.firstinspires.ftc.teamcode.Swerve;
 
-import com.qualcomm.robotcore.hardware.Gamepad;
-
-import org.firstinspires.ftc.teamcode.Swerve.Enums.WheelDirection;
-import org.firstinspires.ftc.teamcode.Utilities.Hardware.IMU;
 
 /**
- * Created to house any math involved in controlling the diff. swerve
+ * Class used to calculate the wheel angles and speeds
+ *
+ * Math Derived from this CD post: https://www.chiefdelphi.com/t/paper-4-wheel-independent-drive-independent-steering-swerve/107383
+ *
  * @author Will Richards
  */
-public class SwerveMath {
+class SwerveMath {
 
-    public static final double WHEEL_DIAMETER = 2.5; //inches
-    public static final double WHEEL_CIRCUMFERENCE = WHEEL_DIAMETER*Math.PI;
+    // Constants regarding the robots physical setup
+    private static double WHEEL_BASE = 0;
+    private static double TRACK_WIDTH = 0;
 
+    // Calculated value from the track width and wheel base
+    private static double R = 0;
+    private static boolean fieldCentric = false;
 
     /**
-     * TODO: Convert angles to field centric variants
-     * Static method used to normalize the joystick
-     * Y is inverted because for some strange reason someone decided that up on the joystick should be negative
-     * @param gamepad1 the primary driving controller
-     * @return the angle in terms of module rotations
+     * Calculates the intermediate variables to simplify math
+     * @return array containing the 4 variables
      */
-    public static double normalizeJoystickAngle(Gamepad gamepad1){
+    private static double[] calculateIntermediaries(double FWD, double STR, double RCW){
+        double[] intermidates = new double[4];
 
-        double alteredAngle = 0;
-        double trueAngle = Math.toDegrees(Math.atan2(gamepad1.left_stick_y*-1, gamepad1.left_stick_x));
+        // A
+        intermidates[0] = STR - RCW * (WHEEL_BASE/R);
 
-        //Centered
-        if(gamepad1.left_stick_x==0 && gamepad1.left_stick_y*-1==0)
-            alteredAngle = 0;
+        // B
+        intermidates[1] = STR + RCW * (WHEEL_BASE/R);
 
-        //Anywhere in the top hemisphere (including 90 on the right)
-        else if(trueAngle>=0 && trueAngle<=180)
-            alteredAngle = 90-trueAngle;
+        // C
+        intermidates[2] = FWD - RCW * (TRACK_WIDTH/R);
 
-        //90 on the left
-        else if(gamepad1.left_stick_x<=0&&gamepad1.left_stick_y*-1==0)
-            alteredAngle = -90;
+        // D
+        intermidates[3] = FWD + RCW * (TRACK_WIDTH/R);
 
-        //Bottom Left Quad.
-        else if(gamepad1.left_stick_y*-1<=0&&gamepad1.left_stick_x<=0)
-            alteredAngle = 90-(trueAngle+180);
-
-        //Bottom Right Quad.
-        else if(gamepad1.left_stick_y*-1<=0&&gamepad1.left_stick_x>=0)
-            alteredAngle =  (-90)-trueAngle;
-
-        //If none of those applied its okay to return the current angle
-        else {
-            alteredAngle = trueAngle;
-        }
-
-        //Convert to rotations
-        return alteredAngle/360;
+        return intermidates;
     }
 
     /**
-     * Static overload used to angle the module based on realtionship to the field
-     * Y is inverted because for some strange reason someone decided that up on the joystick should be negative
-     * @param gamepad1 the primary driving controller
-     * @return the angle in terms of module rotations
+     * Takes in the FWD and STR from the input and then calculates field centric values
+     * @param FWD the forward vectors
+     * @param STR the strafe vector
+     * @param gyroAngle 360 degree angle from the gyro that is zeroed at straight down the field
+     * @return array containing new values in the same order they were passes
      */
-    public static double normalizeJoystickAngle(Gamepad gamepad1, IMU imu){
+    public static double[] calculateControlVectors(double FWD, double STR, double gyroAngle){
+        double[] vectors = new double[2];
 
-        double alteredAngle = 0;
-        double trueAngle = Math.toDegrees(Math.atan2(gamepad1.left_stick_y*-1, gamepad1.left_stick_x));
+        // FWD
+        vectors[0] = FWD*Math.cos(gyroAngle) + STR * Math.sin(gyroAngle);
 
-        trueAngle = trueAngle + imu.getHeading();
+        // STR
+        vectors[1] = -FWD*Math.sin(gyroAngle) + STR*Math.cos(gyroAngle);
 
-        //Centered
-        if(gamepad1.left_stick_x==0 && gamepad1.left_stick_y*-1==0)
-            alteredAngle = 0;
-
-            //Anywhere in the top hemisphere (including 90 on the right)
-        else if(trueAngle>=0 && trueAngle<=180)
-            alteredAngle = 90-trueAngle;
-
-            //90 on the left
-        else if(gamepad1.left_stick_x<=0&&gamepad1.left_stick_y*-1==0)
-            alteredAngle = -90;
-
-            //Bottom Left Quad.
-        else if(gamepad1.left_stick_y*-1<=0&&gamepad1.left_stick_x<=0)
-            alteredAngle = 90-(trueAngle+180);
-
-            //Bottom Right Quad.
-        else if(gamepad1.left_stick_y*-1<=0&&gamepad1.left_stick_x>=0)
-            alteredAngle =  (-90)-trueAngle;
-
-            //If none of those applied its okay to return the current angle
-        else {
-            alteredAngle = trueAngle;
-        }
-
-        //Convert to rotations
-        return alteredAngle/360;
+        return vectors;
     }
 
     /**
-     * Static method used to normalize a given angle
-     * @return the angle in terms of module rotations
+     * Calculate the speeds for each of the swerve module wheels, and then normalize and return the results
+     * @param FWD the forward power vector
+     * @param STR the strafe power vector
+     * @param RCW the rotation vector
+     * @return the speeds for each wheel to be commanded to run at
      */
-    public static double normalizeAngle(double angle){
+    public static double[] calculateWheelSpeeds(double FWD, double STR, double RCW){
+        double[] wheelSpeeds = new double[4];
+        double[] intermediates = calculateIntermediaries(FWD, STR, RCW);
+        double max = 0;
 
-        double alteredAngle = 0;
-        // FIXME: Isn't this trueAngle variable redundant? We could just rename the parameter to achieve the same effect
-        double trueAngle = angle;
-        if(angle==0)
-            alteredAngle = 0;
-        else if(trueAngle>=0 && trueAngle<=180)
-            alteredAngle = 90-trueAngle;
-        else {
-            alteredAngle = trueAngle;
+        //Front Right
+        wheelSpeeds[0] = Math.sqrt(((Math.pow(intermediates[1],2))+(Math.pow(intermediates[2],2))));
+
+        //Front Left
+        wheelSpeeds[1] = Math.sqrt(((Math.pow(intermediates[1],2))+(Math.pow(intermediates[3],2))));
+
+        //Back Left
+        wheelSpeeds[2] = Math.sqrt(((Math.pow(intermediates[0],2))+(Math.pow(intermediates[3],2))));
+
+        //Back Right
+        wheelSpeeds[3] = Math.sqrt(((Math.pow(intermediates[0],2))+(Math.pow(intermediates[2],2))));
+
+        // Normalize results, effectively clamp the values between 0 and 1 to between 0 and +1
+        max = wheelSpeeds[0];
+        if(wheelSpeeds[1]>max)
+            max=wheelSpeeds[1];
+        if(wheelSpeeds[2]>max)
+            max=wheelSpeeds[2];
+        if(wheelSpeeds[3]>max)
+            max=wheelSpeeds[3];
+        if(max >1) {
+            wheelSpeeds[0] /= max;
+            wheelSpeeds[1] /= max;
+            wheelSpeeds[2] /= max;
+            wheelSpeeds[3] /= max;
         }
 
-        return alteredAngle/360;
-    }
-
-
-    /**
-     * Returns the direction the wheel should be running based on the current Y axis, not really math but whatever
-     * @param gamepad1 ref. to the primary gamepad
-     * @return the direction the wheel should run
-     */
-    public static WheelDirection getWheelDirection(Gamepad gamepad1){
-        if(gamepad1.left_stick_y*-1 == 0){
-            return WheelDirection.STATIC;
-        }
-        else if (gamepad1.left_stick_y*-1 < 0){
-            return WheelDirection.BACKWARD;
-        }
-        else{
-            return WheelDirection.FORWARD;
-        }
-    }
-
-    /**
-     * Returns the direction the wheel should be running based on the current angle
-     * @return the direction the wheel should run
-     */
-    public static WheelDirection getWheelDirection(double angle){
-        if (angle < 0){
-            return WheelDirection.BACKWARD;
-        }
-        else {
-            return WheelDirection.FORWARD;
-        }
+        return wheelSpeeds;
     }
 
     /**
-     * Calculates the current module rotation from the current tick count
-     * @param topMotorTicks number of total ticks on top
-     * @param bottomMotorTicks number of total ticks on bottom
-     * @return the position in % of a rotation
+     * Calculate the angles the wheels should be facing to drive the correct direction
+     * @param FWD the forward power vector
+     * @param STR the strafe power vector
+     * @param RCW the rotation power vector
+     * @return the angles the swerve modules should be facing
      */
-    public static double getModulePosition(int topMotorTicks, int bottomMotorTicks){
-        return (((double)topMotorTicks+(double)bottomMotorTicks)/2250);
+    public static double[] calculateWheelAngles(double FWD, double STR, double RCW){
+        double[] wheelAngles = new double[4];
+        double[] intermediates = calculateIntermediaries(FWD, STR, RCW);
+
+        //Front Right
+        wheelAngles[0] = Math.toDegrees(Math.atan2(intermediates[1], intermediates[2]));
+
+        //Front Left
+        wheelAngles[1] = Math.toDegrees(Math.atan2(intermediates[1], intermediates[3]));
+
+        //Back Left
+        wheelAngles[2] = Math.toDegrees(Math.atan2(intermediates[0], intermediates[3]));
+
+        //Back Right
+        wheelAngles[3] = Math.toDegrees(Math.atan2(intermediates[0], intermediates[2]));
+
+        return wheelAngles;
     }
 
     /**
-     * Calculates the current rotation count of the wheel
-     * @param topMotorTicks the number of encoder ticks on the top motors
-     * @param bottomMotorTicks the number of encoder ticks on the bottom motor
-     * @return the current positional value of the wheel
+     * Convert the angle for a modules from the true angle to motor ticks
+     * @return the altered angle
      */
-    public static double getWheelPosition(int topMotorTicks, int bottomMotorTicks){
-        return ((-topMotorTicks+bottomMotorTicks)/548.75);
+    public static double convertAnglesToTicks(double angle, double gearRatio){
+        angle *= (2240/360.0) * gearRatio;
+
+        return angle;
     }
 
     /**
-     * Calculate the required wheel rotations, assuming the motor encoders have already been reset.
-     * @param distance the distance needed to move in inches
-     * @return the distance in terms of rotations
+     * Sets the physical robot wheel base
+     * @param wheelBase measurement of robot wheelbase
      */
-    public static double calculateWheelPosition(double distance){
-       return (distance / WHEEL_CIRCUMFERENCE);
+    public static void setWheelBase(double wheelBase){
+        WHEEL_BASE = wheelBase;
+        if(TRACK_WIDTH > 0 && WHEEL_BASE > 0){
+            // Calculate R which is just sqrt(wheelbase^2 + trackwidth^2)
+            R = Math.sqrt(((Math.pow(WHEEL_BASE, 2))+(Math.pow(TRACK_WIDTH, 2))));
+        }
+    }
+
+    /**
+     * Sets the physical robot track width
+     * @param trackWidth robot track width
+     */
+    public static void setTrackWidth(double trackWidth){
+        TRACK_WIDTH = trackWidth;
+        if(TRACK_WIDTH > 0 && WHEEL_BASE > 0){
+
+            // Calculate R which is just sqrt(wheelbase^2 + trackwidth^2)
+            R = Math.sqrt(((Math.pow(WHEEL_BASE, 2))+(Math.pow(TRACK_WIDTH, 2))));
+        }
+    }
+
+    /**
+     * Sets the control style of the swerve
+     * @param isFieldCentric boolean representing the control style
+     */
+    public static void setFieldCentric(boolean isFieldCentric){
+        fieldCentric = isFieldCentric;
     }
 
 }
